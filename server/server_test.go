@@ -209,37 +209,163 @@ func TestErrorInstrumentationMiddleware(t *testing.T) {
 	conn.Close()
 	server.Shutdown()
 
-	metrics, err := prometheus.DefaultGatherer.Gather()
-	require.NoError(t, err)
-
-	statuses := map[string]string{}
-	for _, family := range metrics {
-		if *family.Name == "request_duration_seconds" {
-			for _, metric := range family.Metric {
-				var route, statusCode string
-				for _, label := range metric.GetLabel() {
-					switch label.GetName() {
-					case "status_code":
-						statusCode = label.GetValue()
-					case "route":
-						route = label.GetValue()
-					}
-				}
-				statuses[route] = statusCode
-			}
-		}
-	}
-	require.Equal(t, map[string]string{
-		"/server.FakeServer/FailWithError":     "error",
-		"/server.FakeServer/FailWithHTTPError": "402",
-		"/server.FakeServer/Sleep":             "cancel",
-		"/server.FakeServer/StreamSleep":       "cancel",
-		"/server.FakeServer/Succeed":           "success",
-		"error500":                             "500",
-		"sleep10":                              "200",
-		"succeed":                              "200",
-		"notfound":                             "404",
-	}, statuses)
+	require.NoError(t, testutil.GatherAndCompare(prometheus.DefaultGatherer, bytes.NewBufferString(`
+		# HELP request_duration_seconds Time (in seconds) spent serving HTTP requests.
+		# TYPE request_duration_seconds histogram
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="GET",route="error500",status_code="500",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="GET",route="error500",status_code="500",ws="false"} 2.0939e-05
+		request_duration_seconds_count{method="GET",route="error500",status_code="500",ws="false"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="GET",route="notfound",status_code="404",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="GET",route="notfound",status_code="404",ws="false"} 4.889e-06
+		request_duration_seconds_count{method="GET",route="notfound",status_code="404",ws="false"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.005"} 0
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.01"} 0
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.025"} 0
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.05"} 0
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="GET",route="sleep10",status_code="200",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="GET",route="sleep10",status_code="200",ws="false"} 0.050678959
+		request_duration_seconds_count{method="GET",route="sleep10",status_code="200",ws="false"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="GET",route="succeed",status_code="200",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="GET",route="succeed",status_code="200",ws="false"} 1.2939e-05
+		request_duration_seconds_count{method="GET",route="succeed",status_code="200",ws="false"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false"} 4.0319e-05
+		request_duration_seconds_count{method="gRPC",route="/server.FakeServer/FailWithError",status_code="error",ws="false"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false"} 0.00010308
+		request_duration_seconds_count{method="gRPC",route="/server.FakeServer/FailWithHTTPError",status_code="402",ws="false"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.005"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.01"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.025"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.05"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false"} 0.051520165
+		request_duration_seconds_count{method="gRPC",route="/server.FakeServer/Sleep",status_code="cancel",ws="false"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.005"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.01"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.025"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.05"} 0
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false"} 0.053327329
+		request_duration_seconds_count{method="gRPC",route="/server.FakeServer/StreamSleep",status_code="cancel",ws="false"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.005"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.01"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.025"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.05"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="0.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="1"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="2.5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="5"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="10"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="25"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="50"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="100"} 1
+		request_duration_seconds_bucket{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false",le="+Inf"} 1
+		request_duration_seconds_sum{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false"} 3.678e-06
+		request_duration_seconds_count{method="gRPC",route="/server.FakeServer/Succeed",status_code="success",ws="false"} 1
+	`), "request_duration_seconds"))
 }
 
 func TestHTTPInstrumentationMetrics(t *testing.T) {
